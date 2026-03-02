@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>露天商品抓取測試</title>
+</head>
+
+<body>
+  <h1>露天多商品搜尋網頁</h1>
+  <form method="post">
+      <textarea name="items" rows="5" placeholder="每行輸入一個商品名稱"></textarea><br>
+    <input type="text" name="seller" placeholder="指定賣家帳號 (可選)" style="width:200px;"><br>
+    <button type="submit">搜尋</button>
+  </form>
+
+  <!-- 結果 -->
+  {% if results %}
+  {% for seller, items in results.items() %}
+  <h2>{{ seller }} ({{ items|length }} 件商品)</h2>
+  <ul>
+    {% for item in items %}
+    <li>
+      <a href="{{ item.link }}" target="_blank">{{ item.title }}</a> - {{ item.price }} 元
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  {% endif %}
