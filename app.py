@@ -4,11 +4,16 @@ from fastapi.templating import Jinja2Templates
 from playwright.sync_api import sync_playwright
 from urllib.parse import quote
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import time
+import datetime
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+
+# 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
+executor = ThreadPoolExecutor(max_workers=4)
 
 # ---- 讀取前置符號檔 ----
 symbol_pairs = []
@@ -25,32 +30,66 @@ start_chars = "".join([p[0] for p in symbol_pairs])
 end_chars = "".join([p[1] for p in symbol_pairs])
 prefix_pattern = rf"^[{re.escape(start_chars)}](.+?)[{re.escape(end_chars)}]+"
 
-def search_ruten(keyword, target_seller=None):
+# ---- 工作函數：在單個執行緒中執行完整搜尋（包括創建瀏覽器) ----
+def search_item_thread(item, target_seller=None):
+    """在單個執行緒中為一個商品進行完整搜尋"""
+    now = datetime.datetime.now().strftime("%H:%M:%S")
+    print(f"[{now}] 開始處理商品: {item}")
+    
     results = []
+    
+    # 每個執行緒創建自己的瀏覽器實例
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
             args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
         )
-        page = browser.new_page(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
-        )
+        try:
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+            )
+            page = context.new_page()
+            
+            # 執行搜尋
+            results = search_ruten_on_page(page, item, target_seller=target_seller)
+            
+            page.close()
+            context.close()
+        except Exception as e:
+            print(f"Thread error for {item}: {e}")
+        finally:
+            browser.close()
+    
+    end = datetime.datetime.now().strftime("%H:%M:%S")
+    print(f"[{end}] 完成處理商品: {item}")
+    
+    return results
+def search_ruten_on_page(page, keyword, target_seller=None):
+    results = []
+    
+    # 所有的選擇器與變數定義完全保留
+    url = f"https://www.ruten.com.tw/find/?q={quote(keyword)}"
+    productSelector = ".product-item"
+    priceSelector = "div.price-range-container span.rt-text-price.rt-text-bold.text-price-dollar"
 
-        url = f"https://www.ruten.com.tw/find/?q={quote(keyword)}"
-        productSelector = ".product-item"
-        waittime = 8000
-        priceSelector = "div.price-range-container span.rt-text-price.rt-text-bold.text-price-dollar"
+    if target_seller:
+        url = f"https://www.ruten.com.tw/store/{target_seller}/find?q={quote(keyword)}"
+        productSelector = ".quint-goods"        
+        priceSelector = "div.price-range-container span.rt-text-price.text-price-dollar"
 
-        if target_seller:
-            url = f"https://www.ruten.com.tw/store/{target_seller}/find?q={quote(keyword)}"
-            productSelector = ".quint-goods"
-            waittime = 2000
-            priceSelector = "div.price-range-container span.rt-text-price.text-price-dollar"
+    try:
+        # 1. 前往網頁
+        page.goto(url, wait_until="domcontentloaded")
 
-        page.goto(url)
-        page.wait_for_timeout(waittime)
+        # 2. 修改點：將 state 改為 "attached"
+        # 這代表「只要 HTML 標籤出現就開工」，不管它現在是否在螢幕內或是否透明
+        page.wait_for_selector(productSelector, state="attached", timeout=5000)
+        
+        # 3. 滾動以觸發後續的圖片加載
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-
+        
+        # 4. 滾動後給予 1-2 秒讓資料穩定（這段不能省，因為露天的價格有時是動態填入的）
+        page.wait_for_timeout(1500)
         cards = page.query_selector_all(productSelector)
         for card in cards:
             try:                
@@ -66,6 +105,7 @@ def search_ruten(keyword, target_seller=None):
                 price = int("".join(filter(str.isdigit, price_text))) if price_text else 0
                 if price >= 99999: continue
                 
+                # 保留你原本的賣家名稱提取 logic
                 match = re.match(prefix_pattern, title_full)
                 if match:
                     seller = match.group(1)
@@ -86,29 +126,42 @@ def search_ruten(keyword, target_seller=None):
                 })
             except:
                 continue
-        browser.close()
+    except Exception as e:
+        print(f"Error searching {keyword}: {e}")
+
     return results
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    """渲染主要頁面模板"""
     return templates.TemplateResponse("index.html", {"request": request})
 
+# ---- 改為多執行緒 API 入口 (使用 ThreadPoolExecutor 並行搜尋) ----
 @app.post("/search")
 def api_search(
     items: str = Body(..., embed=True), 
     seller: str = Body(None, embed=True)
 ):
-    """接收 JSON 請求並回傳搜尋結果 JSON"""
     item_list = [i.strip() for i in items.split("\n") if i.strip()]
     item_list = list(dict.fromkeys(item_list))
 
     all_results = []
-    for item in item_list:
-        results = search_ruten(item, target_seller=seller)
-        all_results.extend(results)
-        time.sleep(1)
 
+    # 使用 ThreadPoolExecutor 並行執行搜尋
+    futures = []
+    for item in item_list:
+        # 将每个搜索任务提交到执行线程池
+        future = executor.submit(search_item_thread, item, target_seller=seller)
+        futures.append(future)
+    
+    # 收集所有搜尋結果
+    for future in as_completed(futures):
+        try:
+            results = future.result()
+            all_results.extend(results)
+        except Exception as e:
+            print(f"Error in thread: {e}")
+
+    # ---- 後續分類整理與排序邏輯 ----
     seller_data = defaultdict(list)
     for product in all_results:
         seller_data[product["seller"]].append({
