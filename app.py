@@ -181,4 +181,14 @@ def api_search(
         key=lambda x: (x[0] == "未知賣家", -len(x[1]))
     )
 
-    return {"results": dict(sorted_sellers)}
+    try:
+        # 直接使用 dict() 轉換 tuple list 是最安全的
+        final_results = dict(sorted_sellers)
+    except Exception as e:
+        print(f"轉換字典失敗: {e}")
+        # 如果失敗，至少回傳原始列表避免 ASGI 崩潰
+        final_results = {str(k): v for k, v in sorted_sellers}
+
+    return {"results": final_results}
+
+    # return {"results": dict(sorted_sellers)}
