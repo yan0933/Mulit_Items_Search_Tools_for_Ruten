@@ -8,9 +8,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import time
 import datetime
+import os
+from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
-templates = Jinja2Templates(directory="templates")
+# templates = Jinja2Templates(directory="templates")
+# 獲取目前檔案的絕對路徑
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 強制指定目錄，確保 Jinja2 不會因為抓不到路徑而傳回錯誤物件
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 # 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
 executor = ThreadPoolExecutor(max_workers=1)
@@ -54,6 +60,9 @@ def search_item_thread(item, target_seller=None):
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
             )
             page = context.new_page()
+            
+            # 加入這行：攔截不需要的資源（圖片、字體、CSS）
+            page.route("**/*.{png,jpg,jpeg,gif,css,svg,woff}", lambda route: route.abort())
             
             # 執行搜尋
             results = search_ruten_on_page(page, item, target_seller=target_seller)
