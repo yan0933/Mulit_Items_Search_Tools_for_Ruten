@@ -13,7 +13,7 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
-executor = ThreadPoolExecutor(max_workers=4)
+executor = ThreadPoolExecutor(max_workers=1)
 
 # ---- 讀取前置符號檔 ----
 symbol_pairs = []
