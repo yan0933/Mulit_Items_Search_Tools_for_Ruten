@@ -137,7 +137,7 @@ def search_ruten_on_page(page, keyword, target_seller=None):
     return results
 
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request):
+async def home(request: Request):  # 加上 async
     return templates.TemplateResponse("index.html", {"request": request})
 
 # ---- 改為多執行緒 API 入口 (使用 ThreadPoolExecutor 並行搜尋) ----
