@@ -12,27 +12,7 @@ from pathlib import Path
 app = FastAPI()
 
 # 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
-executor = ThreadPoolExecutor(max_workers=2)
-
-# ---- 啟動時檢查 Playwright 安裝 ----
-@app.on_event("startup")
-async def startup_event():
-    print("[STARTUP] 檢查 Playwright 環境...")
-    try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
-            browser.close()
-        print("[STARTUP] ✓ Playwright 環境正常")
-    except Exception as e:
-        print(f"[STARTUP] ⚠ Playwright 初始化警告: {e}")
-        print("[STARTUP] 嘗試安裝 Playwright...")
-        import subprocess
-        try:
-            subprocess.run(["python", "-m", "playwright", "install", "--with-deps", "chromium"], check=True)
-            print("[STARTUP] ✓ Playwright 已安裝")
-        except Exception as install_err:
-            print(f"[STARTUP] ✗ Playwright 安裝失敗: {install_err}")
+executor = ThreadPoolExecutor(max_workers=1)
 
 # ---- 讀取前置符號檔 ----
 symbol_pairs = []
