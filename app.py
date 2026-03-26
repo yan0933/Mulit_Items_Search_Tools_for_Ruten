@@ -10,13 +10,11 @@ import time
 import datetime
 import os
 from fastapi.templating import Jinja2Templates
-
+from pathlib import Path
 app = FastAPI()
 # templates = Jinja2Templates(directory="templates")
-# 獲取目前檔案的絕對路徑
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 強制指定目錄，確保 Jinja2 不會因為抓不到路徑而傳回錯誤物件
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+BASE_DIR = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
 executor = ThreadPoolExecutor(max_workers=1)
