@@ -12,7 +12,7 @@ from pathlib import Path
 app = FastAPI()
 
 # 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
-executor = ThreadPoolExecutor(max_workers=1)
+executor = ThreadPoolExecutor(max_workers=2)
 
 # ---- 啟動時檢查 Playwright 安裝 ----
 @app.on_event("startup")
@@ -66,7 +66,6 @@ def search_item_thread(item, target_seller=None):
                 "--disable-setuid-sandbox", 
                 "--disable-dev-shm-usage", # 解決 Docker 記憶體限制問題
                 "--disable-blink-features=AutomationControlled"]
-            # args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
         )
         try:
             context = browser.new_context(
@@ -545,5 +544,3 @@ def api_search(
         final_results = {str(k): v for k, v in sorted_sellers}
 
     return {"results": final_results}
-
-    # return {"results": dict(sorted_sellers)}
