@@ -10,13 +10,29 @@ import datetime
 import os
 from pathlib import Path
 app = FastAPI()
-# 使用內建簡單 HTML 回應，避免模板引擎在 render 環境的版本差異問題
-BASE_DIR = Path(__file__).resolve().parent
-
-executor = ThreadPoolExecutor(max_workers=1)
 
 # 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
 executor = ThreadPoolExecutor(max_workers=1)
+
+# ---- 啟動時檢查 Playwright 安裝 ----
+@app.on_event("startup")
+async def startup_event():
+    print("[STARTUP] 檢查 Playwright 環境...")
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+            browser.close()
+        print("[STARTUP] ✓ Playwright 環境正常")
+    except Exception as e:
+        print(f"[STARTUP] ⚠ Playwright 初始化警告: {e}")
+        print("[STARTUP] 嘗試安裝 Playwright...")
+        import subprocess
+        try:
+            subprocess.run(["python", "-m", "playwright", "install", "--with-deps", "chromium"], check=True)
+            print("[STARTUP] ✓ Playwright 已安裝")
+        except Exception as install_err:
+            print(f"[STARTUP] ✗ Playwright 安裝失敗: {install_err}")
 
 # ---- 讀取前置符號檔 ----
 symbol_pairs = []
@@ -434,42 +450,7 @@ async def home(request: Request):
         container.innerHTML = '<p>查無相關商品。</p>';
         return;
       }
-
-      //   entries.forEach(([seller, items]) => {
-      //     const sellerSection = document.createElement('div');
-      //     sellerSection.className = 'seller-section';
-      //     sellerSection.style.marginBottom = '40px';
-
-      //     // 賣家標題
-      //     sellerSection.innerHTML = `
-      //     <h2 style="border-left: 5px solid #0066cc; padding-left: 15px; margin-bottom: 20px;">
-      //         ${seller} <span style="font-size: 0.9rem; color: #888;">(${items.length} 件商品)</span>
-      //     </h2>
-      //     <div class="results-grid" id="grid-${seller.replace(/\s+/g, '')}"></div>
-      // `;
-      //     container.appendChild(sellerSection);
-
-      //     const gridContainer = sellerSection.querySelector('.results-grid');
-
-      //     // 產生卡片 HTML
-      //     gridContainer.innerHTML = items.map(item => {
-      //       const imgSrc = item.image || "https://via.placeholder.com/300?text=No+Image";
-
-      //       return `
-      //         <div class="product-card">
-      //             <div class="card-img-wrapper">
-      //                 <img src="${imgSrc}" alt="${item.title}" loading="lazy">
-      //             </div>
-      //             <div class="card-content">
-      //                 <a href="${item.link}" target="_blank" class="card-title" title="${item.title}">
-      //                     ${item.title}
-      //                 </a>
-      //                 <div class="card-price">$${item.price}</div>
-      //             </div>
-      //         </div>
-      //     `;
-      //     }).join('');
-      //   });
+      
       entries.forEach(([seller, items]) => {
         const sellerSection = document.createElement('div');
         sellerSection.style.marginBottom = '30px';

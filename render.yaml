@@ -4,9 +4,11 @@ services:
     env: python
     plan: free
     region: oregon
-    buildCommand: pip install -r requirements.txt && playwright install --with-deps
+    buildCommand: bash -c 'pip install -r requirements.txt && python -m playwright install --with-deps chromium'
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     autoDeploy: true
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: "/root/.cache/ms-playwright"
