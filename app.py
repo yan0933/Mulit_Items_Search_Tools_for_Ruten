@@ -14,6 +14,26 @@ app = FastAPI()
 # 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
 executor = ThreadPoolExecutor(max_workers=1)
 
+# ---- 啟動時檢查 Playwright 安裝 ----
+@app.on_event("startup")
+async def startup_event():
+    print("[STARTUP] 檢查 Playwright 環境...")
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+            browser.close()
+        print("[STARTUP] ✓ Playwright 環境正常")
+    except Exception as e:
+        print(f"[STARTUP] ⚠ Playwright 初始化警告: {e}")
+        print("[STARTUP] 嘗試安裝 Playwright...")
+        import subprocess
+        try:
+            subprocess.run(["python", "-m", "playwright", "install", "--with-deps", "chromium"], check=True)
+            print("[STARTUP] ✓ Playwright 已安裝")
+        except Exception as install_err:
+            print(f"[STARTUP] ✗ Playwright 安裝失敗: {install_err}")
+
 # ---- 讀取前置符號檔 ----
 symbol_pairs = []
 try:
@@ -46,6 +66,7 @@ def search_item_thread(item, target_seller=None):
                 "--disable-setuid-sandbox", 
                 "--disable-dev-shm-usage", # 解決 Docker 記憶體限制問題
                 "--disable-blink-features=AutomationControlled"]
+            # args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
         )
         try:
             context = browser.new_context(
@@ -524,3 +545,5 @@ def api_search(
         final_results = {str(k): v for k, v in sorted_sellers}
 
     return {"results": final_results}
+
+    # return {"results": dict(sorted_sellers)}
