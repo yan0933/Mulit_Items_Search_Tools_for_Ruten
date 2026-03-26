@@ -181,4 +181,4 @@ def api_search(
         key=lambda x: (x[0] == "未知賣家", -len(x[1]))
     )
 
-    return {"results": {k: v for k, v in sorted_sellers}}
+    return {"results": dict(sorted_sellers)}
