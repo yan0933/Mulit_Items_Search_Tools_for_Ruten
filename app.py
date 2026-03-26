@@ -42,7 +42,12 @@ def search_item_thread(item, target_seller=None):
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
+            args=[
+                "--no-sandbox", 
+                "--disable-setuid-sandbox", 
+                "--disable-dev-shm-usage", # 解決 Docker 記憶體限制問題
+                "--disable-blink-features=AutomationControlled"]
+            # args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
         )
         try:
             context = browser.new_context(
