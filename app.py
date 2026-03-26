@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request, Body
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from playwright.sync_api import sync_playwright
 from urllib.parse import quote
 from collections import defaultdict
@@ -9,12 +8,12 @@ import re
 import time
 import datetime
 import os
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 app = FastAPI()
-# templates = Jinja2Templates(directory="templates")
+# 使用內建簡單 HTML 回應，避免模板引擎在 render 環境的版本差異問題
 BASE_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+executor = ThreadPoolExecutor(max_workers=1)
 
 # 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
 executor = ThreadPoolExecutor(max_workers=1)
@@ -144,8 +143,22 @@ def search_ruten_on_page(page, keyword, target_seller=None):
     return results
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):  # 加上 async
-    return templates.TemplateResponse("index.html", {"request": request})
+async def home(request: Request):
+    html = """
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset=\"utf-8\">
+        <title>Ruten 搜尋工具</title>
+      </head>
+      <body>
+        <h1>Mulit Items Search Tools for Ruten</h1>
+        <p>POST /search</p>
+        <p>JSON body: {"items":"品名1\n品名2", "seller":"賣家ID（選填）"}</p>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
 
 # ---- 改為多執行緒 API 入口 (使用 ThreadPoolExecutor 並行搜尋) ----
 @app.post("/search")
