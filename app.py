@@ -17,12 +17,18 @@ executor = ThreadPoolExecutor(max_workers=1)
 @app.on_event("startup")
 async def startup_event():
     print("[STARTUP] 應用程式已啟動")
-    print("[STARTUP] Playwright 環境檢查...")
+    print("[STARTUP] 檢查 Playwright 環境...")
+    
+    # 檢查環境變數
+    import os
+    print(f"[STARTUP] PLAYWRIGHT_BROWSERS_PATH={os.environ.get('PLAYWRIGHT_BROWSERS_PATH', 'not set')}")
+    print(f"[STARTUP] PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD={os.environ.get('PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD', 'not set')}")
+    
     try:
         with sync_playwright() as p:
             print("[STARTUP] ✓ Chromium 可用")
     except Exception as e:
-        print(f"[STARTUP] ⚠ Playwright/Chromium 檢查失敗: {e}")
+        print(f"[STARTUP] ✗ Chromium 檢查失敗: {str(e)[:200]}")
 
 # ---- 讀取前置符號檔 ----
 symbol_pairs = []
@@ -51,16 +57,21 @@ def search_item_thread(item, target_seller=None):
     try:
         with sync_playwright() as p:
             print(f"[{now}] Playwright 已初始化，準備啟動 Chromium...")
-            browser = p.chromium.launch(
-                headless=True,
-                args=[
-                    "--no-sandbox", 
-                    "--disable-setuid-sandbox", 
-                    "--disable-dev-shm-usage",
-                    "--disable-blink-features=AutomationControlled"
-                ]
-            )
-            print(f"[{now}] Chromium 已啟動")
+            try:
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--no-sandbox", 
+                        "--disable-setuid-sandbox", 
+                        "--disable-dev-shm-usage",
+                        "--disable-blink-features=AutomationControlled"
+                    ]
+                )
+                print(f"[{now}] ✓ Chromium 已啟動")
+            except Exception as launch_err:
+                print(f"[{now}] ✗ Chromium 啟動失敗: {str(launch_err)[:300]}")
+                raise launch_err
+            
             try:
                 context = browser.new_context(
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
@@ -80,7 +91,7 @@ def search_item_thread(item, target_seller=None):
             finally:
                 browser.close()
     except Exception as e:
-        print(f"[{now}] Playwright 初始化失敗: {e}")
+        print(f"[{now}] Playwright 初始化失敗: {str(e)[:300]}")
     
     end = datetime.datetime.now().strftime("%H:%M:%S")
     print(f"[{end}] 完成處理商品: {item}")

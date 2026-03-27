@@ -11,12 +11,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 複製專案原始碼
 COPY . .
 
-# 明確安裝 Playwright 瀏覽器
-RUN python -m playwright install --with-deps chromium
+# 確保 Playwright 瀏覽器已安裝（使用官方映像的預設位置）
+RUN python -m playwright install-deps && \
+    python -m playwright install chromium
 
 # 環境變數設定
 ENV PYTHONUNBUFFERED=1
-ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # 暴露 FastAPI 預設埠
 EXPOSE 8000
