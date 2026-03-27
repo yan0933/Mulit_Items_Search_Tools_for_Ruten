@@ -17,6 +17,12 @@ executor = ThreadPoolExecutor(max_workers=1)
 @app.on_event("startup")
 async def startup_event():
     print("[STARTUP] 應用程式已啟動")
+    print("[STARTUP] Playwright 環境檢查...")
+    try:
+        with sync_playwright() as p:
+            print("[STARTUP] ✓ Chromium 可用")
+    except Exception as e:
+        print(f"[STARTUP] ⚠ Playwright/Chromium 檢查失敗: {e}")
 
 # ---- 讀取前置符號檔 ----
 symbol_pairs = []
@@ -42,34 +48,39 @@ def search_item_thread(item, target_seller=None):
     results = []
     
     # 每個執行緒創建自己的瀏覽器實例
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=[
-                "--no-sandbox", 
-                "--disable-setuid-sandbox", 
-                "--disable-dev-shm-usage", # 解決 Docker 記憶體限制問題
-                "--disable-blink-features=AutomationControlled"]
-            # args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
-        )
-        try:
-            context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+    try:
+        with sync_playwright() as p:
+            print(f"[{now}] Playwright 已初始化，準備啟動 Chromium...")
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox", 
+                    "--disable-setuid-sandbox", 
+                    "--disable-dev-shm-usage",
+                    "--disable-blink-features=AutomationControlled"
+                ]
             )
-            page = context.new_page()
-            
-            # 加入這行：攔截不需要的資源（圖片、字體、CSS）
-            page.route("**/*.{png,jpg,jpeg,gif,css,svg,woff}", lambda route: route.abort())
-            
-            # 執行搜尋
-            results = search_ruten_on_page(page, item, target_seller=target_seller)
-            
-            page.close()
-            context.close()
-        except Exception as e:
-            print(f"Thread error for {item}: {e}")
-        finally:
-            browser.close()
+            print(f"[{now}] Chromium 已啟動")
+            try:
+                context = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+                )
+                page = context.new_page()
+                
+                # 攔截不需要的資源
+                page.route("**/*.{png,jpg,jpeg,gif,css,svg,woff}", lambda route: route.abort())
+                
+                # 執行搜尋
+                results = search_ruten_on_page(page, item, target_seller=target_seller)
+                
+                page.close()
+                context.close()
+            except Exception as e:
+                print(f"[{now}] 搜尋出錯 {item}: {e}")
+            finally:
+                browser.close()
+    except Exception as e:
+        print(f"[{now}] Playwright 初始化失敗: {e}")
     
     end = datetime.datetime.now().strftime("%H:%M:%S")
     print(f"[{end}] 完成處理商品: {item}")

@@ -11,6 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 複製專案原始碼
 COPY . .
 
+# 明確安裝 Playwright 瀏覽器
+RUN python -m playwright install --with-deps chromium
+
 # 環境變數設定
 ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
