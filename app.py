@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, Body
 from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from urllib.parse import quote
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,8 +11,15 @@ from pathlib import Path
 
 app = FastAPI()
 
-# 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
-executor = ThreadPoolExecutor(max_workers=1)
+# 掛載靜態檔案目錄
+app.mount("/static", StaticFiles(directory="."), name="static")
+
+# 依執行環境設定執行緒池 (Render.com 企劃通常單執行緒，Local 多執行緒)
+os = __import__("os")
+is_render = "RENDER_SERVICE_ID" in os.environ or os.getenv("RENDER", "").lower() in ("1", "true", "yes")
+max_workers = int(os.getenv("THREAD_POOL_WORKERS", "1" if is_render else "4"))
+print(f"[STARTUP] is_render={is_render}, max_workers={max_workers}")
+executor = ThreadPoolExecutor(max_workers=max_workers)
 
 # ---- 啟動時簡單驗證 ----
 @app.on_event("startup")
@@ -46,7 +54,7 @@ end_chars = "".join([p[1] for p in symbol_pairs])
 prefix_pattern = rf"^[{re.escape(start_chars)}](.+?)[{re.escape(end_chars)}]+"
 
 # ---- 工作函數：在單個執行緒中執行完整搜尋（包括創建瀏覽器) ----
-def search_item_thread(item, target_seller=None):
+def search_item_thread(item, target_seller=None, cateid=None):
     """在單個執行緒中為一個商品進行完整搜尋"""
     now = datetime.datetime.now().strftime("%H:%M:%S")
     print(f"[{now}] 開始處理商品: {item}")
@@ -82,7 +90,7 @@ def search_item_thread(item, target_seller=None):
                 page.route("**/*.{png,jpg,jpeg,gif,css,svg,woff}", lambda route: route.abort())
                 
                 # 執行搜尋
-                results = search_ruten_on_page(page, item, target_seller=target_seller)
+                results = search_ruten_on_page(page, item, target_seller=target_seller, cateid=cateid)
                 
                 page.close()
                 context.close()
@@ -97,7 +105,7 @@ def search_item_thread(item, target_seller=None):
     print(f"[{end}] 完成處理商品: {item}")
     
     return results
-def search_ruten_on_page(page, keyword, target_seller=None):
+def search_ruten_on_page(page, keyword, target_seller=None, cateid=None):
     results = []
     
     # 所有的選擇器與變數定義完全保留
@@ -109,7 +117,8 @@ def search_ruten_on_page(page, keyword, target_seller=None):
         url = f"https://www.ruten.com.tw/store/{target_seller}/find?q={quote(keyword)}"
         productSelector = ".quint-goods"        
         priceSelector = "div.price-range-container span.rt-text-price.text-price-dollar"
-
+    elif cateid:
+        url += f"&cateid={cateid}"
     try:
         # 1. 前往網頁
         page.goto(url, wait_until="domcontentloaded")
@@ -173,7 +182,8 @@ async def home(request: Request):
 @app.post("/search")
 def api_search(
     items: str = Body(..., embed=True), 
-    seller: str = Body(None, embed=True)
+    seller: str = Body(None, embed=True),
+    cateid: str = Body(None, embed=True)
 ):
     item_list = [i.strip() for i in items.split("\n") if i.strip()]
     item_list = list(dict.fromkeys(item_list))
@@ -184,7 +194,7 @@ def api_search(
     futures = []
     for item in item_list:
         # 将每个搜索任务提交到执行线程池
-        future = executor.submit(search_item_thread, item, target_seller=seller)
+        future = executor.submit(search_item_thread, item, target_seller=seller, cateid=cateid)
         futures.append(future)
     
     # 收集所有搜尋結果
