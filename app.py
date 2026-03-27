@@ -5,10 +5,8 @@ from urllib.parse import quote
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
-import time
 import datetime
-import os
-from pathlib import Path
+
 app = FastAPI()
 
 # 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
@@ -19,10 +17,10 @@ executor = ThreadPoolExecutor(max_workers=1)
 async def startup_event():
     print("[STARTUP] 檢查 Playwright 環境...")
     try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
-            browser.close()
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+            await browser.close()
         print("[STARTUP] ✓ Playwright 環境正常")
     except Exception as e:
         print(f"[STARTUP] ⚠ Playwright 初始化警告: {e}")
@@ -545,5 +543,3 @@ def api_search(
         final_results = {str(k): v for k, v in sorted_sellers}
 
     return {"results": final_results}
-
-    # return {"results": dict(sorted_sellers)}
