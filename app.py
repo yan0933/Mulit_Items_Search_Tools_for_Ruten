@@ -1,15 +1,14 @@
 from fastapi import FastAPI, Request, Body
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from playwright.sync_api import sync_playwright
+from fastapi.responses import HTMLResponse, FileResponse
 from urllib.parse import quote
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from playwright.sync_api import sync_playwright
 import re
 import datetime
+from pathlib import Path
 
 app = FastAPI()
-templates = Jinja2Templates(directory="templates")
 
 # 執行緒池 (預設 4 個執行緒，可根據 CPU 核心數調整)
 executor = ThreadPoolExecutor(max_workers=1)
@@ -143,9 +142,10 @@ def search_ruten_on_page(page, keyword, target_seller=None):
 
     return results
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    template_path = Path(__file__).parent / "index.html"
+    return FileResponse(template_path, media_type="text/html")
 
 # ---- 改為多執行緒 API 入口 (使用 ThreadPoolExecutor 並行搜尋) ----
 @app.post("/search")
