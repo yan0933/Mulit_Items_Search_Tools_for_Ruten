@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>露天多商品搜尋工具</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .search-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #34495e;
+        }
+
+        textarea,
+        input[type="text"] {
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            resize: vertical;
+        }
+
+        textarea {
+            min-height: 120px;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .seller-section {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .seller-header {
+            background-color: #ecf0f1;
+            padding: 15px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .product-list {
+            padding: 0;
+            list-style: none;
+        }
+
+        .product-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .product-item:last-child {
+            border-bottom: none;
+        }
+
+        .product-image {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        .product-info {
+            flex: 1;
+        }
+
+        .product-title {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+            text-decoration: none;
+        }
+
+        .product-title:hover {
+            color: #3498db;
+        }
+
+        .product-price {
+            color: #e74c3c;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .error {
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .instructions {
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>露天多商品搜尋工具</h1>
+
+        <div class="instructions">
+            <h3>使用說明</h3>
+            <ul>
+                <li>在下方輸入框中，每行輸入一個商品名稱</li>
+                <li>可選：輸入賣家 ID 來搜尋特定賣家的商品</li>
+                <li>點擊「搜尋」按鈕開始查詢</li>
+                <li>結果會按賣家分組顯示</li>
+            </ul>
+        </div>
+
+        <form class="search-form" id="searchForm">
+            <div class="form-group">
+                <label for="items">商品名稱（每行一個）：</label>
+                <textarea id="items" name="items" placeholder="例如：&#10;iPhone 15&#10;MacBook Pro&#10;AirPods"
+                    required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="seller">賣家 ID（選填）：</label>
+                <input type="text" id="seller" name="seller" placeholder="例如：apple_official">
+            </div>
+            <button type="submit">搜尋商品</button>
+        </form>
+
+        <div class="loading" id="loading">
+            <p>正在搜尋中，請稍候...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        document.getElementById('searchForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const items = document.getElementById('items').value.trim();
+            const seller = document.getElementById('seller').value.trim();
+
+            if (!items) {
+                showError('請輸入至少一個商品名稱');
+                return;
+            }
+
+            showLoading();
+            hideError();
+            hideResults();
+
+            try {
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        items: items,
+                        seller: seller || null
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayResults(data.results);
+            } catch (error) {
+                showError('搜尋失敗：' + error.message);
+            } finally {
+                hideLoading();
+            }
+        });
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function showResults() {
+            document.getElementById('results').style.display = 'block';
+        }
+
+        function hideResults() {
+            document.getElementById('results').style.display = 'none';
+        }
+
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            if (!results || Object.keys(results).length === 0) {
+                resultsDiv.innerHTML = '<p style="text-align: center; color: #7f8c8d;">未找到相關商品</p>';
+                showResults();
+                return;
+            }
+
+            for (const [seller, products] of Object.entries(results)) {
+                const sellerSection = document.createElement('div');
+                sellerSection.className = 'seller-section';
+
+                const sellerHeader = document.createElement('div');
+                sellerHeader.className = 'seller-header';
+                sellerHeader.textContent = `${seller} (${products.length} 件商品)`;
+                sellerSection.appendChild(sellerHeader);
+
+                const productList = document.createElement('ul');
+                productList.className = 'product-list';
+
+                products.forEach(product => {
+                    const productItem = document.createElement('li');
+                    productItem.className = 'product-item';
+
+                    const imageHtml = product.image ?
+                        `<img src="${product.image}" alt="${product.title}" class="product-image" onerror="this.style.display='none'">` :
+                        '<div class="product-image" style="background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #999;">無圖片</div>';
+
+                    productItem.innerHTML = `
+                        ${imageHtml}
+                        <div class="product-info">
+                            <a href="${product.link}" target="_blank" class="product-title">${product.title}</a>
+                            <div class="product-price">NT$ ${product.price.toLocaleString()}</div>
+                        </div>
+                    `;
+
+                    productList.appendChild(productItem);
+                });
+
+                sellerSection.appendChild(productList);
+                resultsDiv.appendChild(sellerSection);
+            }
+
+            showResults();
+        }
+    </script>
+</body>
+
+</html>
