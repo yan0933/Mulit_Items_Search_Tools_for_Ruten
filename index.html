@@ -47,7 +47,7 @@
                             </label>
                         </div>
                     </div>
-                    <button type="submit">搜尋商品</button>
+                    <button id="searchButton" type="submit">搜尋商品</button>
                 </form>
             </div>
         </div>
@@ -72,6 +72,11 @@
                 showError('請輸入至少一個商品名稱');
                 return;
             }
+
+            // 禁用搜尋按鈕
+            const searchButton = document.getElementById('searchButton');
+            searchButton.disabled = true;
+            searchButton.textContent = '搜尋中...';
 
             showLoading();
             hideError();
@@ -100,6 +105,9 @@
                 showError('搜尋失敗：' + error.message);
             } finally {
                 hideLoading();
+                // 重新啟用搜尋按鈕
+                searchButton.disabled = false;
+                searchButton.textContent = '搜尋商品';
             }
         });
 
