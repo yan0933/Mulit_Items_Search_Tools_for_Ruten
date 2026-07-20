@@ -151,11 +151,13 @@ def search_ruten_on_page(page, keyword, target_seller=None, cateid=None):
                 match = re.match(prefix_pattern, title_full)
                 if match:
                     seller = match.group(1)
-                    title = re.sub(prefix_pattern, "", title_full).strip()
+                    # title = re.sub(prefix_pattern, "", title_full).strip()
                 else:
                     seller = target_seller if target_seller else "未知賣家"
-                    title = title_full.strip()
-
+                    # title = title_full.strip()
+                
+                title = title_full.strip()
+                
                 link_el = card.query_selector("a.rt-product-card-name-wrap")
                 link = link_el.get_attribute("href") if link_el else "#"
 
